@@ -7,7 +7,7 @@ Compare-PkiCertificates.ps1 compares two PKI Certificates you believe are simila
 <p>&nbsp;</p>
 <p>Your environment's Warning colour (yellow in my screen-grab below) shows the bits we expect to be different (the "not before", "not after", "serial number" and "thumbprint" values) whilst your Error colour (red below) shows the "unexpected differences" like  extra or missing SANs, changes to the key size, etc.</p>
 <p>&nbsp;</p>
-<p><img id="150171" src="/site/view/file/150171/1/Compare-PkiCertificates.png" alt="" width="578" height="405" /></p>
+<img src="https://user-images.githubusercontent.com/11004787/81053018-cde37380-8f07-11ea-92e1-b7647e1d5c2c.png" alt="" width="600" />
 <h4>Features</h4>
 <ul>
 <li>Shows two certificates side-by-side so you can quickly see what's unchanged or different between them </li>
@@ -68,5 +68,11 @@ Compare-PkiCertificates.ps1 compares two PKI Certificates you believe are simila
 <ul>
 <li>This is the initial release. </li>
 </ul>
-<p>&nbsp;</p>
-<p>- G.</p>
+<br>
+
+\- G.
+
+<br>
+
+This script was originally published at [https://greiginsydney.com/compare-pkicertificates-ps1/](https://greiginsydney.com/compare-pkicertificates-ps1/).
+
