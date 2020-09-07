@@ -7,11 +7,14 @@ Feed this script the thumbprint of two certificates and it will tell you where t
 Note that PowerShell v2 (Server 2008R2 & Windows 7) doesn't report all certificate values and can't be reliably trusted for an accurate comparison.
 
 .NOTES  
-    Version				: 1.7
-	Date				: 12th May 2018
+    Version				: 1.8
+	Date				: 7th September 2020
 	Author    			: Greig Sheridan
 	
 	Revision History 	:
+				v1.8: 7th September 2020
+					Added the capture/comparison of Enhanced Key Usage.
+	
 				v1.7: 12th May 2018
 					Added an abort line that kills the script when running in the (unsupported) PowerShell ISE. (Screen-width and coloured output don't work)
 				
@@ -459,15 +462,39 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 				# Retrieve the usages -> to String -> Strip spaces -> to Array -> Sort -> Back to CSV string !
 				$Cert1UsagesSorted = ""
 				$Cert2UsagesSorted = ""
-				if ($Cert1.extensions.KeyUSages -ne $null)
+				if ($Cert1.extensions.KeyUsages -ne $null)
 				{
-					$Cert1UsagesSorted = ((($Cert1.extensions.KeyUSages).ToString() -replace " ","").Split(",") | sort) -join ", "
+					$Cert1UsagesSorted = ((($Cert1.extensions.KeyUsages).ToString() -replace " ","").Split(",") | sort) -join ", "
 				}
-				if ($Cert2.extensions.KeyUSages -ne $null)
+				if ($Cert2.extensions.KeyUsages -ne $null)
 				{
-					$Cert2UsagesSorted = ((($Cert2.extensions.KeyUSages).ToString() -replace " ","").Split(",") | sort) -join ", "
+					$Cert2UsagesSorted = ((($Cert2.extensions.KeyUsages).ToString() -replace " ","").Split(",") | sort) -join ", "
 				}
 				CompareCertParameters "Key Usages" $Cert1UsagesSorted $Cert2UsagesSorted
+				
+				#Enhanced Key Usage:
+				$Cert1EKU = @()
+				$Cert1EKUSorted = ""
+				$Cert2EKU = @()
+				$Cert2EKUSorted = ""
+				if ($Cert1.extensions.EnhancedKeyUsages -ne $null)
+				{
+					foreach($certEku in $Cert1.extensions.EnhancedKeyUsages)
+					{
+						$Cert1EKU += (($CertEKU.FriendlyName).ToString())
+					}
+					$Cert1EKUSorted = ($Cert1EKU | sort) -join ", "
+					
+				}
+				if ($Cert2.extensions.EnhancedKeyUsages -ne $null)
+				{
+					foreach($certEku in $Cert2.extensions.EnhancedKeyUsages)
+					{
+						$Cert2EKU += (($CertEKU.FriendlyName).ToString())
+					}
+					$Cert2EKUSorted = ($Cert2EKU | sort) -join ", "
+				}
+				CompareCertParameters "Enhanced Key Usage" $Cert1EKUSorted $Cert2EKUSorted
 			}
 			default 
 			{	
@@ -533,13 +560,14 @@ else
 
 #References:
 # http://social.technet.microsoft.com/wiki/contents/articles/1447.display-subject-alternative-names-of-a-certificate-with-powershell.aspx
+# https://www.leeholmes.com/blog/2007/01/09/filtering-on-the-certificate-provider/
 
 #Code signing certificate kindly provided by Digicert:
 # SIG # Begin signature block
 # MIIceAYJKoZIhvcNAQcCoIIcaTCCHGUCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUrOSEsujHGrYEkeoXF37PD5QI
-# XQ+gghenMIIFMDCCBBigAwIBAgIQA1GDBusaADXxu0naTkLwYTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUqsOYBEwEJ3lglF+vlLZnk0/Y
+# /0SgghenMIIFMDCCBBigAwIBAgIQA1GDBusaADXxu0naTkLwYTANBgkqhkiG9w0B
 # AQsFADByMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYD
 # VQQLExB3d3cuZGlnaWNlcnQuY29tMTEwLwYDVQQDEyhEaWdpQ2VydCBTSEEyIEFz
 # c3VyZWQgSUQgQ29kZSBTaWduaW5nIENBMB4XDTIwMDQxNzAwMDAwMFoXDTIxMDcw
@@ -670,22 +698,22 @@ else
 # BgNVBAMTKERpZ2lDZXJ0IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0EC
 # EANRgwbrGgA18btJ2k5C8GEwCQYFKw4DAhoFAKB4MBgGCisGAQQBgjcCAQwxCjAI
 # oAKAAKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIB
-# CzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFBQrXYERqQ6Qh6iQwxqp
-# eZKHXZE8MA0GCSqGSIb3DQEBAQUABIIBACJ2R6KwXtqV7utENSmXWuUvrSdcOtxy
-# XWCTuygmIp1dx/wmSZYSWj1DDeDT7x/UNfP73eOUamxBJjZcZ0zOgn0CS9jM7/FH
-# KLBtzo/wg6aLFKtQANLPuLN0+NqDBYWwejvFRNp3fARC/XP/9AIPWwQRthN6AViF
-# ul37wiv/MGQWtT8lTJnbErIx1/5IUPY/RY81hlve10biBI9RbhOWSEfR/mumXGUa
-# ffCCKOCo72AFhXzAIibN2Afo3EJHUxoFERTL5MDTjbpwTxUUz3qlkj6gNTQywh5H
-# GpqWOxkTBM0eMMvT/aCtovMFGfZruocBtmzlyEZ/t4QPmesC0j7UdiihggIPMIIC
+# CzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFMZqWttDcqdpp4DH5fDo
+# WWb3srSbMA0GCSqGSIb3DQEBAQUABIIBAIkVMNcx6SECiA4YIi3JlbGKtrWBGNlw
+# ZPgvZqrx/+xPgRCRKryKcyQ+LCBGzyEqPbbWQFCoM/Sq3wPDfrUgJc8rJzVL3NcK
+# dfpgJhSypTOn4pA92/6+TgIkyisdPbfOUHopmdA9N7eVA4qLVHhvJHUrCTSuyyy+
+# 4f84GjE2ivYAJBK61aEnxVXG4Tf2IM3Nsu4LS1RuNIaYx6ic/e+pPDi0EI9vtmEv
+# VTXmB9q+pePtK0L/XEKC40ANTZNLNIRM8gBnk/mfIou6jQYXBpRAmbzNs7Wc3ynt
+# XX+vr62FdDl/sTsjXni2BfDkInKkcbvt3QNZrYOQ5Yu7+GovKU7xURWhggIPMIIC
 # CwYJKoZIhvcNAQkGMYIB/DCCAfgCAQEwdjBiMQswCQYDVQQGEwJVUzEVMBMGA1UE
 # ChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYD
 # VQQDExhEaWdpQ2VydCBBc3N1cmVkIElEIENBLTECEAMBmgI6/1ixa9bV6uYX8GYw
 # CQYFKw4DAhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcN
-# AQkFMQ8XDTIwMDUwNTExMjk1NFowIwYJKoZIhvcNAQkEMRYEFGQo6StkasdqTaH/
-# /sYNkpuUOw9oMA0GCSqGSIb3DQEBAQUABIIBAHKKud81aZ/+CRgqXcVVcHle8L2c
-# qkwvOy3cAJ8Nz1vwePz+g/RU2U1PMNRbDxUodumGwZE28kjgZjlBss4qOqgmS6/a
-# yDLj+WejXIBMS4DdfdxH4wa2XEqWiE8N/PlxuzNEqC2ur5up04uT+Jwpy/4p9FP0
-# IDNEfiZ/FDUXAXofnYtGOr2HJKRISuW5g5IBIHE1PPZW8SNeBfL5IWczBxbDNPjX
-# zsfatPogcDYQG+NRdHb9kqDXVReBqvVysx9cgOi3mzmN3YM9mgZfTZSHS13Yk39z
-# Aibr3XXN637iD57qOr1+mBdirpeFz0gug5IRBN8ChjYXuJMPzFQZMuoYYyQ=
+# AQkFMQ8XDTIwMDkwNzA5NDA0N1owIwYJKoZIhvcNAQkEMRYEFJRm1HskdwawxVCu
+# VJ5aZe30w79ZMA0GCSqGSIb3DQEBAQUABIIBADNbtAcXwpnSuj8bEIKiFrgOzvNJ
+# FFTJtkSHCvCGmeDuiCM2mqsmEEczsOBrSncy9CpsKKueLqsQPr5CrNKlyO1EpJNl
+# vtZR2ZopvsDrzhC7xaUZMLb2MSdJXD19ARBQ+PS2+YPltllXroA0oSfPuR71z8KB
+# WlTU+j+RDpsMLnqVeM+KsL07VvfD0heM9OF3fTlEAOBiBG6AWfqUO6YgF309zfb4
+# jRSYe72xPNJglr04w++MGXE6zvs0Xpdka/whSa9oOwP8kY4xf730X0phXjqoO434
+# 6W8IAD+L93ZOJ7F0rr/cfFcCeBrCuUA7eAYivmNP6ztZBjb5dC839tChK7U=
 # SIG # End signature block
