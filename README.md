@@ -48,6 +48,9 @@ PS C:\> .\Compare-PkiCertificates.ps1 e96e65bc080f0b3494a430d5ea9f2d0a1afda599 2
 
 ### Revision History
 
+#### v1.8: 7th September 2020
+- Added the capture/comparison of Enhanced Key Usage
+
 #### v1.7: 12th May 2018
 
 - Added an abort line that kills the script when running in the (unsupported) PowerShell ISE. (Screen-width and coloured output don't work) 
