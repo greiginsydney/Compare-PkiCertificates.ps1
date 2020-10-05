@@ -103,7 +103,7 @@ Param(
 	[switch] $IgnoreCase
 )
 
-$ScriptVersion = "1.7" 
+$ScriptVersion = "1.8" 
 $Error.Clear()         
 
 #--------------------------------
