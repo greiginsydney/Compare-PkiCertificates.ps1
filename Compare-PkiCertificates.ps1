@@ -1,62 +1,62 @@
-<#  
-.SYNOPSIS  
+<#
+.SYNOPSIS
 Feed this script the thumbprint of two certificates and it will tell you where they differ.
 
-.DESCRIPTION  
+.DESCRIPTION
 Feed this script the thumbprint of two certificates and it will tell you where they differ.
 Note that PowerShell v2 (Server 2008R2 & Windows 7) doesn't report all certificate values and can't be reliably trusted for an accurate comparison.
 
-.NOTES  
+.NOTES
     Version				: 1.8
 	Date				: 7th September 2020
 	Author    			: Greig Sheridan
-	
+
 	Revision History 	:
 				v1.8: 7th September 2020
 					Added the capture/comparison of Enhanced Key Usage.
-	
+
 				v1.7: 12th May 2018
 					Added an abort line that kills the script when running in the (unsupported) PowerShell ISE. (Screen-width and coloured output don't work)
-				
+
 				v1.6: 30th March 2018
 					Corrected bug where a SAN would show incorrectly if there was a difference in case between the two certs
 					Set the 'warning' highlighting to all attributes where the case differs between certificates
 					Added an "-ignorecase" switch, for those who don't care about case-sensitivity
 					Fixed bug where Win7/P$v2 didn't like my Write-Progress lines without a "Status" attribute
-					
+
 				v1.5: 24th December 2017
 					Fixed a bug introduced in 1.4 where the CN was splitting on commas AND spaces, resulting in malformed States especially
 					Incorporated my version of Pat's "Get-UpdateInfo". Credit: https://ucunleashed.com/3168
-	
+
 				v1.4: 15th June 2017
 					Found the v1.3 change to reading certs was causing some values not to show in some environments & errors in others.
 						Reverted to the v1.2 approach (but now reading all of cert:\localmachine) pending further investigation.
 					Changed the way the "Subject" is parsed, from Split(",") to Split(", ") & stripped spaces from following ".StartsWith" tests
 					Added "E=" for those scripts that include an e-mail address
-					
+
 				v1.3: 19th February 2017
-					Keen follower "Soder" pointed out that certs might live in more places than just "cert:\localmachine\My" and I was doing the 
+					Keen follower "Soder" pointed out that certs might live in more places than just "cert:\localmachine\My" and I was doing the
 					 script a disservice by not looking in the other repositories. So now it checks them all. Thanks Soder!
 					Fixed an array declaration bug where the "master SAN list" incorrectly represented SANs if the cert had only one SAN
 					Added a null test to the Key Usages sort, otherwise a cert with no usages would spray red on the screen
-	
+
 				v1.2: 22nd January 2017
 					Changed the script comparison engine to take full advantage of your current visible screen width.
 					Sorted Key Usages before sending them to the Compare engine in an effort to reduce false positives.
-	
+
 				v1.1: 28th April 2016
 					Changed the way I read SANs for improved Server 2008 capability
-					
+
 				v1.0: 27 March 2015
 					Initial release.
-					
 
-.LINK  
+
+.LINK
     https://greiginsydney.com/Compare-PkiCertificates.ps1
 
 .EXAMPLE
 	.\Compare-PkiCertificates.ps1
- 
+
 	Description
 	-----------
     With no input parameters passed to it, the script will prompt you to enter two thumbprints.
@@ -64,14 +64,14 @@ Note that PowerShell v2 (Server 2008R2 & Windows 7) doesn't report all certifica
 
 .EXAMPLE
 	.\Compare-PkiCertificates.ps1 -Thumb1 12345678ABCD -Thumb2 ABCDEFG1234
- 
+
 	Description
 	-----------
 	Compares the two certificates on-screen
-	
+
 .EXAMPLE
 	.\Compare-PkiCertificates.ps1 "?12 34 56 78 AB CD" "AB CD EF G1 23 45"
- 
+
 	Description
 	-----------
 	Compares the two certificates on-screen.
@@ -79,32 +79,32 @@ Note that PowerShell v2 (Server 2008R2 & Windows 7) doesn't report all certifica
 
 .PARAMETER Thumbprint1
 		String. Thumbprint
-		
+
 .PARAMETER Thumbprint2
-		String. Thumbprint		
-		
+		String. Thumbprint
+
 .PARAMETER SkipUpdateCheck
-		Boolean. Skips the automatic check for an Update. Courtesy of Pat: http://www.ucunleashed.com/3168		
-		
+		Boolean. Skips the automatic check for an Update. Courtesy of Pat: http://www.ucunleashed.com/3168
+
 .PARAMETER IgnoreCase
 		Boolean. Suppresses the display of warnings when the case of an attribute differs between certificates
 #>
 
 [CmdletBinding(SupportsShouldProcess = $False)]
 Param(
-	
+
 	[Parameter(ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Mandatory = $True)]
     [alias("Thumb1")][string]$Thumbprint1,
-	
+
 	[Parameter(ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True, Mandatory = $True)]
     [alias("Thumb2")][string]$Thumbprint2,
-	
+
 	[switch] $SkipUpdateCheck,
 	[switch] $IgnoreCase
 )
 
 $ScriptVersion = "1.8"
-$Error.Clear()         
+$Error.Clear()
 
 #--------------------------------
 # START FUNCTIONS ---------------
@@ -120,33 +120,33 @@ function CompareCertParameters
 	)
 
 	#If no highlighting, default to the user's normal colours:
-	$OldBackground = $UserBackgroundColour 
-	$OldForeground = $USerForegroundColour 
-	$NewBackground= $UserBackgroundColour 
-	$NewForeground= $USerForegroundColour 
-	
+	$OldBackground = $UserBackgroundColour
+	$OldForeground = $USerForegroundColour
+	$NewBackground= $UserBackgroundColour
+	$NewForeground= $USerForegroundColour
+
 	if ($Cert1Value -ne $Cert2Value)
 	{
 		if ($Cert2Value -ne "")
 		{
 			if ($WarnOnly) #For some values a difference is expected & OK. Warn rather than Err.
 			{
-				$NewForeground = $UserColours.WarningForegroundColor  
-				$NewBackground = $UserColours.WarningBackgroundColor  
+				$NewForeground = $UserColours.WarningForegroundColor
+				$NewBackground = $UserColours.WarningBackgroundColor
 			}
 			else
 			{
 				#Error
-				$NewForeground = $UserColours.ErrorForegroundColor    
-				$NewBackground = $UserColours.ErrorBackgroundColor 
+				$NewForeground = $UserColours.ErrorForegroundColor
+				$NewBackground = $UserColours.ErrorBackgroundColor
 			}
 		}
 		else
 		{
 			#If the value is no longer present in the new cert, apply the highlight to the old cert:
 			#Error
-			$OldForeground = $UserColours.ErrorForegroundColor    
-			$OldBackground = $UserColours.ErrorBackgroundColor 
+			$OldForeground = $UserColours.ErrorForegroundColor
+			$OldBackground = $UserColours.ErrorBackgroundColor
 		}
 	}
 	else
@@ -154,13 +154,13 @@ function CompareCertParameters
 		#This bit highlights the new value if both are identical but differ in case
 		if ((!($Cert1Value -ccontains $Cert2Value)) -and (!$IgnoreCase))
 		{
-			$NewForeground = $UserColours.WarningForegroundColor  
-			$NewBackground = $UserColours.WarningBackgroundColor 
+			$NewForeground = $UserColours.WarningForegroundColor
+			$NewBackground = $UserColours.WarningBackgroundColor
 		}
 	}
 	$Cert1Value =  truncate $Cert1Value ($global:ColumnWidth)
 	$Cert2Value =  truncate $Cert2Value ($global:ColumnWidth)
-	write-host ($parameterName).PadRight($global:HeaderWidth," ") -noNewLine 
+	write-host ($parameterName).PadRight($global:HeaderWidth," ") -noNewLine
 	write-host " " -NoNewLine
 	write-host ($Cert1Value).PadRight($global:ColumnWidth,' ') -noNewLine -foregroundcolor $OldForeground -backgroundcolor $OldBackground
 	write-host " " -NoNewLine
@@ -170,7 +170,7 @@ function CompareCertParameters
 function truncate
 {
 	param ([string]$value, [int]$MaxLength)
-	
+
 	if ($MaxLength -gt 0) { $MaxLength-- }
 	if ($value.Length -gt $MaxLength)
 	{
@@ -184,14 +184,14 @@ function DecodeSANs
 {
 	param (
 	[Parameter(Mandatory=$True)][System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert
-	) 
+	)
 	$SANs = @()
 	#Server 2008(?) hides the SANs away here:
 	try
 	{
 		$S2008SANs = ($cert.Extensions | Where-Object {$_.Oid.FriendlyName -match "subject alternative name"}).Format(1)
 	}
-	catch 
+	catch
 	{
 		$S2008SANs = ""
 	}
@@ -223,21 +223,21 @@ function Get-UpdateInfo
       Email/Blog/Twitter    : pat@innervation.com  https://ucunleashed.com  @patrichard
       Donations             : https://www.paypal.me/PatRichard
       Dedicated Post        : https://ucunleashed.com/3168
-      Disclaimer            : You running this script/function means you will not blame the author(s) if this breaks your stuff. This script/function 
-                            is provided AS IS without warranty of any kind. Author(s) disclaim all implied warranties including, without limitation, 
-                            any implied warranties of merchantability or of fitness for a particular purpose. The entire risk arising out of the use 
-                            or performance of the sample scripts and documentation remains with you. In no event shall author(s) be held liable for 
-                            any damages whatsoever (including, without limitation, damages for loss of business profits, business interruption, loss 
-                            of business information, or other pecuniary loss) arising out of the use of or inability to use the script or 
-                            documentation. Neither this script/function, nor any part of it other than those parts that are explicitly copied from 
-                            others, may be republished without author(s) express written permission. Author(s) retain the right to alter this 
+      Disclaimer            : You running this script/function means you will not blame the author(s) if this breaks your stuff. This script/function
+                            is provided AS IS without warranty of any kind. Author(s) disclaim all implied warranties including, without limitation,
+                            any implied warranties of merchantability or of fitness for a particular purpose. The entire risk arising out of the use
+                            or performance of the sample scripts and documentation remains with you. In no event shall author(s) be held liable for
+                            any damages whatsoever (including, without limitation, damages for loss of business profits, business interruption, loss
+                            of business information, or other pecuniary loss) arising out of the use of or inability to use the script or
+                            documentation. Neither this script/function, nor any part of it other than those parts that are explicitly copied from
+                            others, may be republished without author(s) express written permission. Author(s) retain the right to alter this
                             disclaimer at any time. For the most up to date version of the disclaimer, see https://ucunleashed.com/code-disclaimer.
-      Acknowledgements      : Reading XML files 
+      Acknowledgements      : Reading XML files
                             http://stackoverflow.com/questions/18509358/how-to-read-xml-in-powershell
                             http://stackoverflow.com/questions/20433932/determine-xml-node-exists
       Assumptions           : ExecutionPolicy of AllSigned (recommended), RemoteSigned, or Unrestricted (not recommended)
-      Limitations           : 
-      Known issues          : 
+      Limitations           :
+      Known issues          :
 
       .EXAMPLE
       Get-UpdateInfo -Title "Compare-PkiCertificates.ps1"
@@ -262,7 +262,7 @@ function Get-UpdateInfo
 			# ------------------ TLS 1.2 fixup from https://github.com/chocolatey/choco/wiki/Installation#installing-with-restricted-tls
 			$securityProtocolSettingsOriginal = [System.Net.ServicePointManager]::SecurityProtocol
 			try {
-			  # Set TLS 1.2 (3072). Use integers because the enumeration values for TLS 1.2 won't exist in .NET 4.0, even though they are 
+			  # Set TLS 1.2 (3072). Use integers because the enumeration values for TLS 1.2 won't exist in .NET 4.0, even though they are
 			  # addressable if .NET 4.5+ is installed (.NET 4.5 is an in-place upgrade).
 			  [System.Net.ServicePointManager]::SecurityProtocol = 3072
 			} catch {
@@ -304,13 +304,13 @@ function Get-UpdateInfo
 		else
 		{
 		}
-	
+
 	} # end function Get-UpdateInfo
 	catch
 	{
 		write-verbose "Caught error in Get-UpdateInfo"
 		if ($Global:Debug)
-		{				
+		{
 			$Global:error | fl * -f #This dumps to screen as white for the time being. I haven't been able to get it to dump in red
 		}
 	}
@@ -327,7 +327,7 @@ function Get-UpdateInfo
 
 ## #Requires -RunAsAdministrator #Can't use this here - it wasn't added until v4.
 If (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"))
- {    
+ {
   Echo "This script needs to be run As Admin"
   Break
  }
@@ -349,7 +349,7 @@ If ($PsVersionTable.PsVersion.Major -lt 3)
 	write-warning "This version of PowerShell is not able to read some certificate values."
 	write-warning "Its output cannot be guaranteed to be complete."
 }
- 
+
 $UserColours = (Get-Host).PrivateData
 $USerForegroundColour = (get-host).ui.rawui.ForegroundColor
 $UserBackgroundColour = (get-host).ui.rawui.BackgroundColor
@@ -376,8 +376,8 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 	#Read all the properties of BOTH certs & then de-dupe. This will trap any that are present on one but not the other:
 	$properties  = ($Cert1 | Get-Member -MemberType Property | Select-Object  -ExpandProperty Name)
 	$properties += ($Cert2 | Get-Member -MemberType Property | Select-Object  -ExpandProperty Name)
-	$properties  = $properties  | select -uniq	
-	
+	$properties  = $properties  | select -uniq
+
 	write-host ""
 	write-host  "Attribute".PadRight($HeaderWidth, " ")"Certificate 1".PadRight($ColumnWidth, " ")"Certificate 2".PadRight($ColumnWidth, " ")
 	write-host  ("---------").PadRight($HeaderWidth, " ")("-------------").PadRight($ColumnWidth, " ")("-------------").PadRight($ColumnWidth, " ")
@@ -389,7 +389,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 			{
 				#Skip Thumbprint - we'll manually write it as the last parameter. Private Key we do manually under "HasPrivateKey"
 				Continue
-			} 
+			}
 			{($_ -eq "notbefore") -or ($_ -eq "notafter") -or ($_ -eq "SerialNumber")}
 			{
 				CompareCertParameters $property $Cert1."$($property)" $Cert2."$($property)" 1 #Force changes to show as yellow - they're expected
@@ -409,7 +409,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 			"HasPrivateKey"
 			{
 				CompareCertParameters $property $Cert1."$($property)" $Cert2."$($property)"
-				CompareCertParameters "Key Size" $Cert1.PrivateKey.KeySize $Cert2.PrivateKey.KeySize 
+				CompareCertParameters "Key Size" $Cert1.PrivateKey.KeySize $Cert2.PrivateKey.KeySize
 			}
 			"subject"
 			{
@@ -427,8 +427,8 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 					if ($Cert1SubjectValue.StartsWith("OU=")) { $Cert1SubjectItem.Add("OU",      		$Cert1SubjectValue.Substring(3)) }
 					if ($Cert1SubjectValue.StartsWith("E="))  { $Cert1SubjectItem.Add("E-mail",      	$Cert1SubjectValue.Substring(2)) }
 				}
-				
-				$Cert2Subject = ($Cert2.Subject).Split(",")						
+
+				$Cert2Subject = ($Cert2.Subject).Split(",")
 				$Cert2SubjectItem = @{}
 				foreach ($Cert2SubjectValue in $Cert2Subject)
 				{
@@ -451,7 +451,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 			}
 			"SignatureAlgorithm"
 			{
-				CompareCertParameters "Sig Algorithm" ($Cert1."$($property)").FriendlyName ($Cert2."$($property)").FriendlyName 
+				CompareCertParameters "Sig Algorithm" ($Cert1."$($property)").FriendlyName ($Cert2."$($property)").FriendlyName
 			}
 			{($_ -eq "SubjectName") -or ($_ -eq "IssuerName")}
 			{
@@ -471,7 +471,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 					$Cert2UsagesSorted = ((($Cert2.extensions.KeyUsages).ToString() -replace " ","").Split(",") | sort) -join ", "
 				}
 				CompareCertParameters "Key Usages" $Cert1UsagesSorted $Cert2UsagesSorted
-				
+
 				#Enhanced Key Usage:
 				$Cert1EKU = @()
 				$Cert1EKUSorted = ""
@@ -484,7 +484,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 						$Cert1EKU += (($CertEKU.FriendlyName).ToString())
 					}
 					$Cert1EKUSorted = ($Cert1EKU | sort) -join ", "
-					
+
 				}
 				if ($Cert2.extensions.EnhancedKeyUsages -ne $null)
 				{
@@ -496,8 +496,8 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 				}
 				CompareCertParameters "Enhanced Key Usage" $Cert1EKUSorted $Cert2EKUSorted
 			}
-			default 
-			{	
+			default
+			{
 			}
 		}
 	}
@@ -507,7 +507,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 	$AllSANs += $Cert1SANs
 	$Cert2SANs = DecodeSANs $Cert2
 	$AllSANs += $Cert2SANs
-	$AllSANs = $AllSANs  | select -uniq	
+	$AllSANs = $AllSANs  | select -uniq
 	foreach ($SAN in $AllSANs)
 	{
 		if (($Cert1SANs -contains $SAN) -and ($Cert2SANs -contains $SAN))
@@ -516,7 +516,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 			if (($Cert1SANs -ccontains $SAN) -and ($Cert2SANs -ccontains $SAN))
 			{
 				#Nope, both are identical - OK to display as-is
-				CompareCertParameters "SAN" $SAN $SAN 
+				CompareCertParameters "SAN" $SAN $SAN
 			}
 			else
 			{
@@ -532,7 +532,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 					{
 						if ($OtherCaseSAN -contains $SAN)
 						{
-							CompareCertParameters "SAN" $SAN $OtherCaseSAN 
+							CompareCertParameters "SAN" $SAN $OtherCaseSAN
 						}
 					}
 				}
@@ -540,11 +540,11 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 		}
 		elseif (($Cert1SANs -contains $SAN) -and ($Cert2SANs -notcontains $SAN))
 		{
-			CompareCertParameters "SAN" $SAN "" 
+			CompareCertParameters "SAN" $SAN ""
 		}
 		else
 		{
-			CompareCertParameters "SAN" "" $SAN 
+			CompareCertParameters "SAN" "" $SAN
 		}
 	}
 	#Write the Thumbprint last:
