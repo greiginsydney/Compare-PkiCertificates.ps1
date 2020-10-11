@@ -7,11 +7,14 @@ Feed this script the thumbprint of two certificates and it will tell you where t
 Note that PowerShell v2 (Server 2008R2 & Windows 7) doesn't report all certificate values and can't be reliably trusted for an accurate comparison.
 
 .NOTES
-    Version				: 1.8
-	Date				: 7th September 2020
+    Version				: 1.9
+	Date				: 11th October 2020
 	Author    			: Greig Sheridan
 
 	Revision History 	:
+				v1.9: 11th October 2020
+					Added handling for multiple OU's in the cert. Re-purposed the SAN display for this as new fn 'Display-Complex'.
+
 				v1.8: 7th September 2020
 					Added the capture/comparison of Enhanced Key Usage.
 
@@ -103,7 +106,7 @@ Param(
 	[switch] $IgnoreCase
 )
 
-$ScriptVersion = "1.8"
+$ScriptVersion = "1.9"
 $Error.Clear()
 
 #--------------------------------
@@ -202,6 +205,59 @@ function DecodeSANs
 	return $SANs
 }
 
+
+function Display-Complex
+{
+	param (
+	[Parameter(Mandatory=$True)][string]$ItemType,
+	[Parameter(Mandatory=$False)][string[]]$LhsItems,
+	[Parameter(Mandatory=$False)][string[]]$RhsItems
+	)
+
+	$AllItems = @()
+	$AllItems += $LhsItems
+	$AllItems += $RhsItems
+	$AllItems = $AllItems  | select -uniq
+	foreach ($Item in $AllItems)
+	{
+		if (($LhsItems -contains $Item) -and ($RhsItems -contains $Item))
+		{
+			# OK, so we have the same value - but what about the case?
+			if (($LhsItems -ccontains $Item) -and ($RhsItems -ccontains $Item))
+			{
+				#Nope, both are identical - OK to display as-is
+				CompareCertParameters $ItemType $Item $Item
+			}
+			else
+			{
+				#The case of this item differs between the 2 certs. Now we need to carefully display the actual value from each cert
+				#We know without question that this item appears in BOTH certs, so in the two steps below we:
+				# 1) wait until this CASE instance of it is in Cert1, then
+				# 2) Loop through all the items in Cert2 until we find the one that matches.
+				# This makes sure we show them against the correct cert in their correct case, and that the item only shows once (as it's in the master item list twice due to the list's case-sensitivity)
+				if ($LhsItems -ccontains $Item)
+				{
+					#Now cycle through all the certs on Cert2 until we find the matching one, then send the right ones to the display function
+					foreach ($OtherCaseItem in $RhsItems)
+					{
+						if ($OtherCaseItem -contains $Item)
+						{
+							CompareCertParameters $ItemType $Item $OtherCaseItem
+						}
+					}
+				}
+			}
+		}
+		elseif (($LhsItems -contains $Item) -and ($RhsItems -notcontains $Item))
+		{
+			CompareCertParameters $ItemType $Item ""
+		}
+		else
+		{
+			CompareCertParameters $ItemType "" $Item
+		}
+	}
+}
 
 function Get-UpdateInfo
 {
@@ -416,6 +472,7 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 				CompareCertParameters "Subject" $Cert1."$($property)" $Cert2."$($property)"
 				$Cert1Subject = ($Cert1.Subject).Split(",")
 				$Cert1SubjectItem = @{}
+				$Cert1OuList = @()
 				foreach ($Cert1SubjectValue in $Cert1Subject)
 				{
 					$Cert1SubjectValue = $Cert1SubjectValue.Trim()
@@ -424,8 +481,8 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 					if ($Cert1SubjectValue.StartsWith("S="))  { $Cert1SubjectItem.Add("State",   		$Cert1SubjectValue.Substring(2)) }
 					if ($Cert1SubjectValue.StartsWith("L="))  { $Cert1SubjectItem.Add("City",    		$Cert1SubjectValue.Substring(2)) }
 					if ($Cert1SubjectValue.StartsWith("O="))  { $Cert1SubjectItem.Add("Organisation", 	$Cert1SubjectValue.Substring(2)) }
-					if ($Cert1SubjectValue.StartsWith("OU=")) { $Cert1SubjectItem.Add("OU",      		$Cert1SubjectValue.Substring(3)) }
 					if ($Cert1SubjectValue.StartsWith("E="))  { $Cert1SubjectItem.Add("E-mail",      	$Cert1SubjectValue.Substring(2)) }
+					if ($Cert1SubjectValue.StartsWith("OU=")) {	$Cert1OuList +=($Cert1SubjectValue.Substring(3)) }
 				}
 
 				$Cert2Subject = ($Cert2.Subject).Split(",")
@@ -438,15 +495,17 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 					if ($Cert2SubjectValue.StartsWith("S="))  { $Cert2SubjectItem.Add("State", 			$Cert2SubjectValue.Substring(2)) }
 					if ($Cert2SubjectValue.StartsWith("L="))  { $Cert2SubjectItem.Add("City", 			$Cert2SubjectValue.Substring(2)) }
 					if ($Cert2SubjectValue.StartsWith("O="))  { $Cert2SubjectItem.Add("Organisation", 	$Cert2SubjectValue.Substring(2)) }
-					if ($Cert2SubjectValue.StartsWith("OU=")) { $Cert2SubjectItem.Add("OU", 			$Cert2SubjectValue.Substring(3)) }
 					if ($Cert2SubjectValue.StartsWith("E="))  { $Cert2SubjectItem.Add("E-mail",      	$Cert2SubjectValue.Substring(2)) }
+					if ($Cert2SubjectValue.StartsWith("OU=")) {	$Cert2OuList +=($Cert2SubjectValue.Substring(3)) }
 				}
+
 				CompareCertParameters "Common Name" 	$Cert1SubjectItem.Get_Item("Common Name") 		$Cert2SubjectItem.Get_Item("Common Name")
 				CompareCertParameters "Country" 		$Cert1SubjectItem.Get_Item("Country") 			$Cert2SubjectItem.Get_Item("Country")
 				CompareCertParameters "State" 			$Cert1SubjectItem.Get_Item("State") 			$Cert2SubjectItem.Get_Item("State")
 				CompareCertParameters "City" 			$Cert1SubjectItem.Get_Item("City") 				$Cert2SubjectItem.Get_Item("City")
 				CompareCertParameters "Organisation" 	$Cert1SubjectItem.Get_Item("Organisation") 		$Cert2SubjectItem.Get_Item("Organisation")
-				CompareCertParameters "OU" 				$Cert1SubjectItem.Get_Item("OU") 				$Cert2SubjectItem.Get_Item("OU")
+				Display-Complex "OU" $Cert1OuList $Cert2OuList
+
 				CompareCertParameters "E-mail"			$Cert1SubjectItem.Get_Item("E-mail") 			$Cert2SubjectItem.Get_Item("E-mail")
 			}
 			"SignatureAlgorithm"
@@ -501,52 +560,11 @@ if (($Cert1 -ne $null) -and ($Cert2 -ne $null))
 			}
 		}
 	}
-	#Create a master SAN list (like we did with Properties above) & de-dupe:
-	$AllSANs = @()
+	#Collate the SANs and pass to the display function:
 	$Cert1SANs = DecodeSANs $Cert1
-	$AllSANs += $Cert1SANs
 	$Cert2SANs = DecodeSANs $Cert2
-	$AllSANs += $Cert2SANs
-	$AllSANs = $AllSANs  | select -uniq
-	foreach ($SAN in $AllSANs)
-	{
-		if (($Cert1SANs -contains $SAN) -and ($Cert2SANs -contains $SAN))
-		{
-			# OK, so we have the same value - but what about the case?
-			if (($Cert1SANs -ccontains $SAN) -and ($Cert2SANs -ccontains $SAN))
-			{
-				#Nope, both are identical - OK to display as-is
-				CompareCertParameters "SAN" $SAN $SAN
-			}
-			else
-			{
-				#The case of this SAN differs between the 2 certs. Now we need to carefully display the actual value from each cert
-				#We know without question that this SAN appears in BOTH certs, so in the two steps below we:
-				# 1) wait until this CASE instance of it is in Cert1, then
-				# 2) Loop through all the SANs in Cert2 until we find the one that matches.
-				# This makes sure we show them against the correct cert in their correct case, and that the SAN only shows once (as it's in the master SAN list twice due to the list's case-sensitivity)
-				if ($Cert1SANs -ccontains $SAN)
-				{
-					#Now cycle through all the certs on Cert2 until we find the matching one, then send the right ones to the display function
-					foreach ($OtherCaseSAN in $Cert2SANs)
-					{
-						if ($OtherCaseSAN -contains $SAN)
-						{
-							CompareCertParameters "SAN" $SAN $OtherCaseSAN
-						}
-					}
-				}
-			}
-		}
-		elseif (($Cert1SANs -contains $SAN) -and ($Cert2SANs -notcontains $SAN))
-		{
-			CompareCertParameters "SAN" $SAN ""
-		}
-		else
-		{
-			CompareCertParameters "SAN" "" $SAN
-		}
-	}
+	Display-Complex "SAN" $Cert1SANs $Cert2SANs
+
 	#Write the Thumbprint last:
 	CompareCertParameters "Thumbprint" $Cert1.Thumbprint $Cert2.Thumbprint 1 #Force changes to show as yellow - they're expected
 
@@ -566,8 +584,8 @@ else
 # SIG # Begin signature block
 # MIIceAYJKoZIhvcNAQcCoIIcaTCCHGUCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUY9GwZe7JkgS2l9MY0JEkda0T
-# dKagghenMIIFMDCCBBigAwIBAgIQA1GDBusaADXxu0naTkLwYTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUX+xMdVntdCNbslNu0vrS126q
+# fcmgghenMIIFMDCCBBigAwIBAgIQA1GDBusaADXxu0naTkLwYTANBgkqhkiG9w0B
 # AQsFADByMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYD
 # VQQLExB3d3cuZGlnaWNlcnQuY29tMTEwLwYDVQQDEyhEaWdpQ2VydCBTSEEyIEFz
 # c3VyZWQgSUQgQ29kZSBTaWduaW5nIENBMB4XDTIwMDQxNzAwMDAwMFoXDTIxMDcw
@@ -698,22 +716,22 @@ else
 # BgNVBAMTKERpZ2lDZXJ0IFNIQTIgQXNzdXJlZCBJRCBDb2RlIFNpZ25pbmcgQ0EC
 # EANRgwbrGgA18btJ2k5C8GEwCQYFKw4DAhoFAKB4MBgGCisGAQQBgjcCAQwxCjAI
 # oAKAAKECgAAwGQYJKoZIhvcNAQkDMQwGCisGAQQBgjcCAQQwHAYKKwYBBAGCNwIB
-# CzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFNN8xG8mSDqWHuARJw8u
-# GaXHWKfvMA0GCSqGSIb3DQEBAQUABIIBAAsAbPApwP2J35trUFffyjG28AKqcaZ9
-# OhYjVLrczZdbGhNtG0nuLTwlBAq55NrISsOGjjsDid5k4A7i3NpxrUJQPiyPpVTg
-# qQh5CyrKZpr9kn673jpuG4anBPd/OQOKERYKeR+CMupVyhi4BWAdjCZShYNyIYrw
-# PtXoIt3ZcLsmt1stIbooa68jc/aKNT6LgKXhe1YHSAvz49QU2h5NS6mzfmkKMw2w
-# fjVzsQcJhPy1m2jeZq78zemWS9wId/g3wiKCEUC7CqIXFNFjmhT/S6omQpzraK9z
-# 4oT6rrzhQmgpCXuhxp14QO2eg/2GPbiItpuT8cZAxH3TiCyhL9sbEbWhggIPMIIC
+# CzEOMAwGCisGAQQBgjcCARUwIwYJKoZIhvcNAQkEMRYEFNIW1jN7p/uX8nETpx13
+# 4yDIrtguMA0GCSqGSIb3DQEBAQUABIIBAFRJefvIl5kS2X8Y2NXwguZ9h0E8/pxd
+# 6HHQvUUQMaqavKo4gWiJ5bKxYT3FA4JMd8jgvPLdodKopdBeD5R0mYqHQ+zd9boa
+# s0AoPTc9DRjjjJCjE6l2bfI5g3wR9GdMaboidXxAJUXtWyoz5gTQejAwYxmUMQUm
+# 31XGgJEcSAsRx19XmlKzQ6xeK1Y11mwYMvrBLAeZsvUblZqAz7i6TSx7w4rJhFpu
+# IXqSW7cDgbBMemPTbHBkOCkyqIb4C+fMi+S0X16XVMdcgx90/EW20CYN1fRp5kPU
+# bHr3I38K47MvTbqE+7O4aHkkudERkmGVHwrjP+UsOZthJVZZO23LvT+hggIPMIIC
 # CwYJKoZIhvcNAQkGMYIB/DCCAfgCAQEwdjBiMQswCQYDVQQGEwJVUzEVMBMGA1UE
 # ChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cuZGlnaWNlcnQuY29tMSEwHwYD
 # VQQDExhEaWdpQ2VydCBBc3N1cmVkIElEIENBLTECEAMBmgI6/1ixa9bV6uYX8GYw
 # CQYFKw4DAhoFAKBdMBgGCSqGSIb3DQEJAzELBgkqhkiG9w0BBwEwHAYJKoZIhvcN
-# AQkFMQ8XDTIwMTAwNTEwMzMxMFowIwYJKoZIhvcNAQkEMRYEFBUiwvjgmsPTNITG
-# q4y5Hnfvw9QOMA0GCSqGSIb3DQEBAQUABIIBAIikJkI7s5bVlp9TmuwMCSKBRVV0
-# +UQxh4SMPaIZo3oac/mFXBKqK78txyqdHyqI+MevMHGY0bSkygzC5dHaD2F8K8IP
-# eLOCjRZHCHzqNKazNR8jjJIYC7kxDm/sXKLQ+szmzB4YRt52aace0RP/ej/YUKpK
-# Y4C+yntOVaMrQ30Bp5U1ojBzSj2QivJZp61IZ3DyNfTlPR8ChVAI+KQQZqcLBowX
-# LIMSQJZ2v3kS7IGsbN56nI5fjy+VLKA9FjzUbkt9S+ZA5sYYlS84y88w5ETaGAzR
-# HSEEnzpz7PC9adVIbJjE74lT7JZ2NWViT3AqibjPyodU/z7sGb5N+02I1xw=
+# AQkFMQ8XDTIwMTAxMTA5MjYwNFowIwYJKoZIhvcNAQkEMRYEFI3bKWHBtERKzf2r
+# R09ujyv/ImwFMA0GCSqGSIb3DQEBAQUABIIBACBfkRsl6vyIjHSj5+XT/eTrhHUo
+# 7UWiJQA5Tjk6pThw6XgpThqT5/r/qBu4Cfw7Oj2Ji97XklyyakJb1SmknC/DanKd
+# 5tOXDaUO8L85EdyFfw3wO46yp38q/1G44+SFK3uhDiMhabxu9fHy2l3C8JEPKnng
+# tMhUi8wkxJlA8l4OV6wRNDtUnNIBbvNuMKNMeBLMJ0LPVyG9OKfbHh8/RJ8QBPo+
+# VP/zv1XmArnJfN6aTnqkdd2D7C9Bl3NmVDQBagl9oHorctNc2qNFQl0vH9s5T7bP
+# kLJgc9aB3Qoxjxxt85zkWCclUPGKtRnjn1c0lztNYsBps4h2r8kwsD318tQ=
 # SIG # End signature block
