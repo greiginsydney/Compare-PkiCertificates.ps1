@@ -48,6 +48,9 @@ PS C:\> .\Compare-PkiCertificates.ps1 e96e65bc080f0b3494a430d5ea9f2d0a1afda599 2
 
 ### Revision History
 
+#### v1.9: 11th October 2020
+- Added handling for multiple OU's in the cert. Re-purposed the SAN display for this as new fn 'Display-Complex'
+          
 #### v1.8: 7th September 2020
 - Added the capture/comparison of Enhanced Key Usage
 
